@@ -1,0 +1,6 @@
+services:
+
+    ymailer:
+        class: Youshido\MailBundle\Service\Mailer
+        calls:
+            - [setContainer, [@service_container]]
