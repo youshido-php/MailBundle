@@ -24,6 +24,7 @@ class YoushidoMailExtension extends Extension
 
         $container->setParameter('ymail.from', $config['config']['from']);
         $container->setParameter('ymail.letters', $config['letters']);
+        $container->setParameter('ymail.cid', $config['cid']);
 
         $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
         $loader->load('services.yml');

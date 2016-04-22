@@ -8,16 +8,33 @@
 namespace Youshido\MailBundle\Service;
 
 
-use Symfony\Component\DependencyInjection\ContainerAware;
+use Symfony\Component\DependencyInjection\ContainerAwareTrait;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
-class Mailer extends ContainerAware
+class Mailer
 {
+
+    use ContainerAwareTrait {
+        setContainer as baseSetContainer;
+    }
 
     /** @var array */
     private $letterConfigs;
 
-    public function setLetter($id, $to, $parameters = [], $subject = '', $attachments = [])
+    /** @var  array */
+    private $contentIds;
+
+    /**
+     * @param        $id
+     * @param        $to
+     * @param array  $parameters
+     * @param string $subject
+     * @param array  $attachments
+     *
+     * @throws \Exception
+     * @throws \Twig_Error
+     */
+    public function sendEmail($id, $to, $parameters = [], $subject = '', $attachments = [])
     {
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
             throw new \Exception('Not valid email');
@@ -32,18 +49,28 @@ class Mailer extends ContainerAware
         $message = \Swift_Message::newInstance()
             ->setSubject($subject ?: $config['subject'])
             ->setFrom($this->container->getParameter('ymail.from'))
-            ->setTo($to)
-            ->setBody($this->container->get('templating')->render($config['template'], $parameters), 'text/html');
+            ->setTo($to);
+
+        $message->setBody(
+            $this->container->get('templating')->render(
+                $config['template'],
+                array_merge(
+                    $parameters,
+                    $this->prepareContentIds($message)
+                )
+            ),
+            'text/html'
+        );
 
         if (isset($config['headers'])) {
-            foreach ($config['headers'] as $header){
+            foreach ($config['headers'] as $header) {
                 $message->getHeaders()->addTextHeader($header['key'], $header['value']);
             }
         }
 
-        if($attachments){
-            foreach($attachments as $attachment){
-                if(!array_key_exists('filePath', $attachment) || !array_key_exists('fileName', $attachment)){
+        if ($attachments) {
+            foreach ($attachments as $attachment) {
+                if (!array_key_exists('filePath', $attachment) || !array_key_exists('fileName', $attachment)) {
                     throw new \Exception('Each attachment must contain filePath and fileName property');
                 }
 
@@ -56,6 +83,33 @@ class Mailer extends ContainerAware
         $this->container->get('mailer')->send($message);
     }
 
+    /**
+     * @param        $id
+     * @param        $to
+     * @param array  $parameters
+     * @param string $subject
+     * @param array  $attachments
+     *
+     * @throws \Exception
+     * @throws \Twig_Error
+     *
+     * @deprecated use method sendEmail
+     */
+    public function setLetter($id, $to, $parameters = [], $subject = '', $attachments = [])
+    {
+        $this->setLetter($id, $to, $parameters, $subject, $attachments);
+    }
+
+    private function prepareContentIds(\Swift_Message $message)
+    {
+        $cid = [];
+
+        foreach ($this->contentIds as $contentId) {
+            $cid[$contentId['id']] = $message->embed(\Swift_Image::fromPath($contentId['path']));
+        }
+
+        return $cid;
+    }
 
     private function getLetterConfig($id)
     {
@@ -72,7 +126,9 @@ class Mailer extends ContainerAware
     public function setContainer(ContainerInterface $container = null)
     {
         $this->letterConfigs = $container->getParameter('ymail.letters');
-        parent::setContainer($container);
+        $this->contentIds    = $container->getParameter('ymail.cid');
+
+        $this->baseSetContainer($container);
     }
 
 
