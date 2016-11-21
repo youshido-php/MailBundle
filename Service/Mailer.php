@@ -36,8 +36,16 @@ class Mailer
      */
     public function sendEmail($id, $to, $parameters = [], $subject = '', $attachments = [])
     {
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            throw new \Exception('Not valid email');
+        if (is_array($to)) {
+            foreach ($to as $item) {
+                if (!filter_var($item, FILTER_VALIDATE_EMAIL)) {
+                    throw new \Exception('Not valid email');
+                }
+            }
+        } else {
+            if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+                throw new \Exception('Not valid email');
+            }
         }
 
         $config = $this->getLetterConfig($id);
