@@ -27,6 +27,7 @@ class Configuration implements ConfigurationInterface
                     ->isRequired()
                     ->children()
                         ->variableNode('from')->cannotBeEmpty()->isRequired()->end()
+                        ->variableNode('host')->defaultValue(null)->end()
                     ->end()
                 ->end()
                 ->arrayNode('cid')

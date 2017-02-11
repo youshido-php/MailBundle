@@ -22,7 +22,7 @@ class YoushidoMailExtension extends Extension
         $configuration = new Configuration();
         $config        = $this->processConfiguration($configuration, $configs);
 
-        $container->setParameter('y_mail.from', $config['config']['from']);
+        $container->setParameter('y_mail.config', $config['config']);
         $container->setParameter('y_mail.emails', $config['emails']);
         $container->setParameter('y_mail.cid', $config['cid']);
 

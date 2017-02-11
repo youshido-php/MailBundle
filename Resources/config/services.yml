@@ -2,5 +2,6 @@ services:
 
     youshido.mailer:
         class: Youshido\MailBundle\Service\Mailer
+        arguments: ["@router"]
         calls:
             - [setContainer, ["@service_container"]]

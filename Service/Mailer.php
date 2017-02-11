@@ -11,6 +11,8 @@ namespace Youshido\MailBundle\Service;
 
 use Symfony\Component\DependencyInjection\ContainerAwareTrait;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Routing\Router;
 use Youshido\MailBundle\Exception\MailerException;
 
 class Mailer
@@ -21,53 +23,80 @@ class Mailer
     }
 
     /** @var array */
-    private $emailConfigs;
+    protected $emailConfigs = [];
 
     /** @var  array */
-    private $contentIds;
+    protected $contentIds = [];
+
+    /** @var Router */
+    private $router;
+
+    public function __construct(Router $router)
+    {
+        $this->router = $router;
+    }
 
     /**
-     * @param        $emailId
-     * @param        $to
-     * @param array  $variables
+     * @param $emailId
+     * @param $to
+     * @param array $variables
      * @param string $subject
-     * @param array  $attachments
-     *
-     * @throws \Exception
+     * @param array $attachments
+     * @return mixed
      */
     public function sendHtmlEmailWithId($emailId, $to, $variables = [], $subject = '', $attachments = [])
     {
         return $this->sendHtmlEmailWithConfig($this->getEmailConfig($emailId), $to, $variables, $subject, $attachments);
     }
 
-    public function sendHtmlEmailWithConfig($config, $to, $variables, $subject = '', $attachments = [])
+    /**
+     * @param $config
+     * @param $to
+     * @param array $variables
+     * @param string $subject
+     * @param array $attachments
+     * @return mixed
+     * @throws \Exception
+     */
+    public function sendHtmlEmailWithConfig($config, $to, $variables = [], $subject = '', $attachments = [])
     {
-        $this->assertValidEmailParameters($config, $to, $subject);
+        $config = $this->getValidatedConfig($config, $to, $subject, $variables, $attachments);
 
-        $message = \Swift_Message::newInstance()
-            ->setSubject($subject ?: $config['subject'])
-            ->setFrom($this->container->getParameter('y_mail.from'))
-            ->setTo($to);
-
-        $message->setBody(
-            $this->container->get('templating')->render(
-                $config['template'],
-                array_merge(
-                    $variables,
-                    $this->prepareContentIds($message)
-                )
-            ),
-            'text/html'
+        $message      = $this->createEmailInstanceWithConfig($config);
+        $renderedBody = $this->container->get('templating')->render(
+            $config['template'],
+            array_merge(
+                $variables,
+                $this->prepareContentIds($message)
+            )
         );
 
+        $message->setBody(
+            $renderedBody,
+            'text/html'
+        );
+        return $this->sendEmail($message, $config);
+    }
+
+    public function sendHtmlEmailWithBody($to, $subject, $body, $variables = [], $attachments = [])
+    {
+        $config = $this->getValidatedConfig([], $to, $subject, $variables, $attachments);
+
+        $message = $this->createEmailInstanceWithConfig($config);
+        $message->setBody($body, 'text/html');
+        return $this->sendEmail($message, $config);
+    }
+
+    protected function sendEmail(\Swift_Message $message, $config)
+    {
         if (isset($config['headers'])) {
             foreach ($config['headers'] as $header) {
                 $message->getHeaders()->addTextHeader($header['key'], $header['value']);
             }
         }
 
-        if ($attachments) {
-            foreach ($attachments as $attachment) {
+        if (!empty($config['attachments'])) {
+            foreach ($config['attachments'] as $attachment) {
                 if (!array_key_exists('filePath', $attachment) || !array_key_exists('fileName', $attachment)) {
                     throw new \Exception('Each attachment must contain filePath and fileName property');
                 }
@@ -81,23 +110,67 @@ class Mailer
         return $this->container->get('mailer')->send($message);
     }
 
-    public function sendHtmlEmailWithBody($body, $to, $subject = '', $attachments = [])
+    protected function createEmailInstanceWithConfig($config)
     {
+        return \Swift_Message::newInstance()
+            ->setSubject($config['subject'])
+            ->setFrom($config['from'])
+            ->setTo($config['to']);
 
     }
 
-    protected function assertValidEmailParameters($emailConfig, $to, $subject = '') {
-        if (!$subject && !isset($emailConfig['subject'])) {
+    public function generateUrl($route, array $params = [])
+    {
+        $originalHost = $this->router->getContext()->getHost();
+        $webHost      = $this->container->getParameter('y_mail.config')['host'];
+        if (!$webHost) {
+            $webHost = $originalHost;
+        }
+
+        $this->router->getContext()->setHost(!empty($params['host']) ? $params['host'] : $webHost);
+        $url = $this->router->generate($route, $params, UrlGeneratorInterface::ABSOLUTE_URL);
+
+        $this->router->getContext()->setHost($originalHost);
+
+        return $url;
+    }
+
+    public function replaceVariables($template, $variables)
+    {
+        foreach ($variables as $var => $value) {
+            $template = str_replace('%' . $var . '%', $value, $template);
+        }
+        return $template;
+    }
+
+    protected function getValidatedConfig($config, $to, $subject = '', $variables = [], $attachments = [])
+    {
+        if (empty($config['subject'])) {
+            $config['subject'] = $subject;
+        }
+        if (empty($config['subject'])) {
             throw new \Exception('You must set email subject');
         }
 
+        $config['subject'] = $this->replaceVariables($config['subject'], $variables);
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
             throw new MailerException(sprintf('Not valid email address %s', $to));
         }
+        $config['to'] = $to;
+        if (empty($config['from'])) {
+            $config['from'] = $this->container->getParameter('y_mail.config')['from'];
+        }
+        if (!empty($attachments)) {
+            $config['attachments'] = $attachments;
+        }
+        if (!empty($variables)) {
+            $config['variables'] = $variables;
+        }
+        return $config;
 
     }
 
-    private function prepareContentIds(\Swift_Message $message)
+    protected function prepareContentIds(\Swift_Message $message)
     {
         $cid = [];
 
@@ -108,13 +181,23 @@ class Mailer
         return $cid;
     }
 
-    private function getEmailConfig($id)
+    protected function getEmailConfig($id)
     {
         if (array_key_exists($id, $this->emailConfigs)) {
             return $this->emailConfigs[$id];
         }
 
         throw new \Exception(sprintf('No config found for email with id \'%s\'', $id));
+    }
+
+    public function addCidDefinitions(array $cidDefinitions)
+    {
+        $this->contentIds = array_merge($this->contentIds, $cidDefinitions);
+    }
+
+    public function setEmailConfigs(array $emailConfigs)
+    {
+        $this->emailConfigs = array_merge($this->emailConfigs, $emailConfigs);
     }
 
     /**
