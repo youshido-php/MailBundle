@@ -3,6 +3,7 @@
  * Date: 10.09.15
  *
  * @author Portey Vasil <portey@gmail.com>
+ * @author Alexandr Viniychuk <a@viniychuk.com>
  */
 
 namespace Youshido\MailBundle\Service;
@@ -10,6 +11,7 @@ namespace Youshido\MailBundle\Service;
 
 use Symfony\Component\DependencyInjection\ContainerAwareTrait;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Youshido\MailBundle\Exception\MailerException;
 
 class Mailer
 {
@@ -19,43 +21,39 @@ class Mailer
     }
 
     /** @var array */
-    private $letterConfigs;
+    private $emailConfigs;
 
     /** @var  array */
     private $contentIds;
 
     /**
-     * @param        $id
+     * @param        $emailId
      * @param        $to
-     * @param array  $parameters
+     * @param array  $variables
      * @param string $subject
      * @param array  $attachments
      *
      * @throws \Exception
-     * @throws \Twig_Error
      */
-    public function sendEmail($id, $to, $parameters = [], $subject = '', $attachments = [])
+    public function sendHtmlEmailWithId($emailId, $to, $variables = [], $subject = '', $attachments = [])
     {
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            throw new \Exception('Not valid email');
-        }
+        return $this->sendHtmlEmailWithConfig($this->getEmailConfig($emailId), $to, $variables, $subject, $attachments);
+    }
 
-        $config = $this->getLetterConfig($id);
-
-        if (!$subject && !isset($config['subject'])) {
-            throw new \Exception('You must set letter subject');
-        }
+    public function sendHtmlEmailWithConfig($config, $to, $variables, $subject = '', $attachments = [])
+    {
+        $this->assertValidEmailParameters($config, $to, $subject);
 
         $message = \Swift_Message::newInstance()
             ->setSubject($subject ?: $config['subject'])
-            ->setFrom($this->container->getParameter('ymail.from'))
+            ->setFrom($this->container->getParameter('y_mail.from'))
             ->setTo($to);
 
         $message->setBody(
             $this->container->get('templating')->render(
                 $config['template'],
                 array_merge(
-                    $parameters,
+                    $variables,
                     $this->prepareContentIds($message)
                 )
             ),
@@ -80,24 +78,23 @@ class Mailer
             }
         }
 
-        $this->container->get('mailer')->send($message);
+        return $this->container->get('mailer')->send($message);
     }
 
-    /**
-     * @param        $id
-     * @param        $to
-     * @param array  $parameters
-     * @param string $subject
-     * @param array  $attachments
-     *
-     * @throws \Exception
-     * @throws \Twig_Error
-     *
-     * @deprecated use method sendEmail
-     */
-    public function setLetter($id, $to, $parameters = [], $subject = '', $attachments = [])
+    public function sendHtmlEmailWithBody($body, $to, $subject = '', $attachments = [])
     {
-        $this->setLetter($id, $to, $parameters, $subject, $attachments);
+
+    }
+
+    protected function assertValidEmailParameters($emailConfig, $to, $subject = '') {
+        if (!$subject && !isset($emailConfig['subject'])) {
+            throw new \Exception('You must set email subject');
+        }
+
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            throw new MailerException(sprintf('Not valid email address %s', $to));
+        }
+
     }
 
     private function prepareContentIds(\Swift_Message $message)
@@ -111,13 +108,13 @@ class Mailer
         return $cid;
     }
 
-    private function getLetterConfig($id)
+    private function getEmailConfig($id)
     {
-        if (array_key_exists($id, $this->letterConfigs)) {
-            return $this->letterConfigs[$id];
+        if (array_key_exists($id, $this->emailConfigs)) {
+            return $this->emailConfigs[$id];
         }
 
-        throw new \Exception(sprintf('No config found for letter with id \'%s\'', $id));
+        throw new \Exception(sprintf('No config found for email with id \'%s\'', $id));
     }
 
     /**
@@ -125,8 +122,8 @@ class Mailer
      */
     public function setContainer(ContainerInterface $container = null)
     {
-        $this->letterConfigs = $container->getParameter('ymail.letters');
-        $this->contentIds    = $container->getParameter('ymail.cid');
+        $this->emailConfigs = $container->getParameter('y_mail.emails');
+        $this->contentIds   = $container->getParameter('y_mail.cid');
 
         $this->baseSetContainer($container);
     }

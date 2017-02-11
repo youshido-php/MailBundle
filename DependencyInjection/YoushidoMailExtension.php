@@ -20,13 +20,13 @@ class YoushidoMailExtension extends Extension
     public function load(array $configs, ContainerBuilder $container)
     {
         $configuration = new Configuration();
-        $config = $this->processConfiguration($configuration, $configs);
+        $config        = $this->processConfiguration($configuration, $configs);
 
-        $container->setParameter('ymail.from', $config['config']['from']);
-        $container->setParameter('ymail.letters', $config['letters']);
-        $container->setParameter('ymail.cid', $config['cid']);
+        $container->setParameter('y_mail.from', $config['config']['from']);
+        $container->setParameter('y_mail.emails', $config['emails']);
+        $container->setParameter('y_mail.cid', $config['cid']);
 
-        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
+        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
         $loader->load('services.yml');
     }
 }
