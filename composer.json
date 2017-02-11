@@ -1,19 +1,24 @@
 {
   "name": "youshido/mail",
   "type": "symfony-bundle",
-  "description": "Bundle for easy integrations mail sending",
-  "keywords": ["mail", "mail generator", "symfony", "bundle"],
+  "description": "Symfony Budnle for Email templates, variables and attachments integration",
+  "keywords": ["mail", "email template", "email variable", "cid", "symfony", "bundle"],
   "homepage": "https://github.com/Youshido/MailBundle",
   "license": "MIT",
   "authors": [
+    {
+      "name": "Alexandr Viniychuk",
+      "email": "a@viniychuk.com"
+    },
     {
       "name": "Portey Vasil",
       "email": "portey@gmail.com"
     }
   ],
   "require": {
-    "php": ">=5.4",
-    "symfony/framework-bundle": "~2.3"
+    "php": ">=5.6",
+    "symfony/framework-bundle": "~3.1",
+    "symfony/swiftmailer-bundle": "^2.4"
   },
   "autoload": {
     "psr-4": { "Youshido\\MailBundle\\": "" }
