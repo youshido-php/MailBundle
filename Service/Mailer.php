@@ -2,8 +2,8 @@
 /**
  * Date: 10.09.15
  *
- * @author Portey Vasil <portey@gmail.com>
  * @author Alexandr Viniychuk <a@viniychuk.com>
+ * @author Portey Vasil <portey@gmail.com>
  */
 
 namespace Youshido\MailBundle\Service;
@@ -138,7 +138,7 @@ class Mailer
     public function replaceVariables($template, $variables)
     {
         foreach ($variables as $var => $value) {
-            $template = str_replace('%' . $var . '%', $value, $template);
+            $template = preg_replace('/{{\s*' . $var . '\s*}}/is' , $value, $template);
         }
         return $template;
     }
