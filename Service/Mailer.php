@@ -119,6 +119,15 @@ class Mailer
 
     }
 
+    public function generateAbsoluteUrlFromString($url)
+    {
+        $webHost      = $this->container->getParameter('y_mail.config')['host'];
+        $rc           = $this->router->getContext();
+
+        $res = sprintf("%s://%s/%s", $rc->getScheme(), ($webHost ? $webHost : $rc->getHost()), $url);
+        return $res;
+    }
+
     public function generateUrl($route, array $params = [])
     {
         $originalHost = $this->router->getContext()->getHost();
@@ -153,7 +162,7 @@ class Mailer
         }
 
         $config['subject'] = $this->replaceVariables($config['subject'], $variables);
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        if (is_string($to) && !filter_var($to, FILTER_VALIDATE_EMAIL)) {
             throw new MailerException(sprintf('Not valid email address %s', $to));
         }
         $config['to'] = $to;
