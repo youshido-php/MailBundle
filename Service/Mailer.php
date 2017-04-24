@@ -220,5 +220,9 @@ class Mailer
         $this->baseSetContainer($container);
     }
 
+    public function getWebHost()
+    {
+        return $this->container->getParameter('y_mail.config')['host'];
+    }
 
 }
