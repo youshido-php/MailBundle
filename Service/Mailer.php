@@ -31,6 +31,8 @@ class Mailer
     /** @var Router */
     private $router;
 
+    private $originalHost = "";
+
     public function __construct(Router $router)
     {
         $this->router = $router;
@@ -63,6 +65,8 @@ class Mailer
         $config = $this->getValidatedConfig($config, $to, $subject, $variables, $attachments);
 
         $message      = $this->createEmailInstanceWithConfig($config);
+
+        $this->setMailWebHost();
         $renderedBody = $this->container->get('templating')->render(
             $config['template'],
             array_merge(
@@ -70,6 +74,7 @@ class Mailer
                 $this->prepareContentIds($message)
             )
         );
+        $this->restoreOriginalWebHost();
 
         $message->setBody(
             $renderedBody,
@@ -130,24 +135,35 @@ class Mailer
 
     public function generateUrl($route, array $params = [])
     {
-        $originalHost = $this->router->getContext()->getHost();
+        $this->setMailWebHost();
+        $url = $this->router->generate($route, $params, UrlGeneratorInterface::ABSOLUTE_URL);
+        $this->restoreOriginalWebHost();
+
+        return $url;
+    }
+
+    public function setMailWebHost()
+    {
+        $this->originalHost = $this->router->getContext()->getHost();
         $webHost      = $this->container->getParameter('y_mail.config')['host'];
         if (!$webHost) {
-            $webHost = $originalHost;
+            $webHost = $this->originalHost;
         }
 
         $this->router->getContext()->setHost(!empty($params['host']) ? $params['host'] : $webHost);
-        $url = $this->router->generate($route, $params, UrlGeneratorInterface::ABSOLUTE_URL);
+    }
 
-        $this->router->getContext()->setHost($originalHost);
-
-        return $url;
+    public function restoreOriginalWebHost()
+    {
+        $this->router->getContext()->setHost($this->originalHost);
     }
 
     public function replaceVariables($template, $variables)
     {
         foreach ($variables as $var => $value) {
-            $template = preg_replace('/{{\s*' . $var . '\s*}}/is' , $value, $template);
+            if (is_string($value)) {
+                $template = preg_replace('/{{\s*' . $var . '\s*}}/is' , $value, $template);
+            }
         }
         return $template;
     }
